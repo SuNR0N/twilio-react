@@ -1,26 +1,34 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React, { FC, useState, ChangeEvent } from 'react';
+import { AppBar, Tabs, Tab } from '@material-ui/core';
 
-function App() {
+import { TabPanel } from './components';
+import { Call, TextMessage, VoiceMessage } from './pages';
+
+export const App: FC = () => {
+  const [currentTabIndex, setCurrentTabIndex] = useState(0);
+
+  const handleChange = (_: ChangeEvent<{}>, newValue: number) => {
+    setCurrentTabIndex(newValue);
+  };
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <>
+      <AppBar position="static">
+        <Tabs value={currentTabIndex} onChange={handleChange}>
+          <Tab label="Text Message" />
+          <Tab label="Voice Message" />
+          <Tab label="Call" />
+        </Tabs>
+      </AppBar>
+      <TabPanel value={currentTabIndex} index={0}>
+        <TextMessage />
+      </TabPanel>
+      <TabPanel value={currentTabIndex} index={1}>
+        <VoiceMessage />
+      </TabPanel>
+      <TabPanel value={currentTabIndex} index={2}>
+        <Call />
+      </TabPanel>
+    </>
   );
-}
-
-export default App;
+};
