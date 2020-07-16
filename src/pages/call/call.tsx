@@ -5,6 +5,7 @@ import { Connection, Device } from 'twilio-client';
 
 import { useDevice } from '../../hooks';
 import { ConfigContext } from '../../contexts/config-context';
+import { Dialpad } from '../../components';
 
 interface FormFields {
   to?: string;
@@ -49,6 +50,10 @@ export const Call: FC = () => {
     device.disconnectAll();
   };
 
+  const handleKeyPress = (key: string) => {
+    connection?.sendDigits(key);
+  };
+
   useEffect(() => {
     device.on('connect', (conn: Connection) => {
       console.log('[Connect] >>>', conn);
@@ -91,6 +96,7 @@ export const Call: FC = () => {
             }
           />
         </Grid>
+        <Dialpad onKeyPress={handleKeyPress} />
         <Grid container justify="center" alignItems="center" item xs={12} spacing={3}>
           <Grid item>
             <Button
