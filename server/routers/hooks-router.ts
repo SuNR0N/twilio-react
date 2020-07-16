@@ -12,7 +12,10 @@ hooksRouter.post('/call/connect', (ctx) => {
   const dial = response.dial({ callerId: TWILIO_PHONE_NUMBER });
   dial.number(phoneNumber);
 
-  ctx.body = response.toString();
+  const responseXML = response.toString();
+  console.log(responseXML);
+
+  ctx.body = responseXML;
 });
 
 hooksRouter.post('/voice', (ctx) => {
@@ -21,5 +24,8 @@ hooksRouter.post('/voice', (ctx) => {
   const dial = response.dial();
   dial.client(CLIENT_SCOPE);
 
-  ctx.body = response.toString();
+  const responseXML = response.toString();
+  console.log(responseXML);
+
+  ctx.body = responseXML;
 });

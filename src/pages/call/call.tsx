@@ -1,21 +1,23 @@
-import React, { ChangeEvent, FC, useEffect, useState, ReactElement } from 'react';
+import React, { ChangeEvent, FC, useContext, useEffect, useState } from 'react';
 import { Button, Grid, Snackbar, TextField } from '@material-ui/core';
 import { Alert } from '@material-ui/lab';
 import { Connection, Device } from 'twilio-client';
 
 import { useDevice } from '../../hooks';
+import { ConfigContext } from '../../contexts/config-context';
 
 interface FormFields {
-  number?: string;
+  to?: string;
 }
 
 export const Call: FC = () => {
+  const from = useContext(ConfigContext);
   const [showNotifications, setShowNotifications] = useState(false);
   const [connection, setConnection] = useState<Connection>();
   const [incomingConnection, setIncomingConnection] = useState<Connection>();
   const [device, isDeviceReady] = useDevice({ debug: true });
   const [formFields, setFormFields] = useState<FormFields>({});
-  const { number } = formFields;
+  const { to: number } = formFields;
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { target } = event;
@@ -71,12 +73,15 @@ export const Call: FC = () => {
   return (
     <>
       <Grid container spacing={3}>
-        <Grid item xs={12}>
+        <Grid item xs={6}>
+          {from && <TextField name="from" defaultValue={from} fullWidth label="From" variant="outlined" disabled />}
+        </Grid>
+        <Grid item xs={6}>
           <TextField
-            name="number"
+            name="to"
             onChange={handleInputChange}
             fullWidth
-            label="Number"
+            label="To"
             variant="outlined"
             disabled={
               !isDeviceReady ||

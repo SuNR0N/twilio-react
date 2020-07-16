@@ -1,17 +1,18 @@
-import React, { FC, useState, ChangeEvent } from 'react';
+import React, { FC, useState, ChangeEvent, useContext } from 'react';
 import { Button, Grid, TextField } from '@material-ui/core';
 
 import { useFetch } from '../../hooks';
+import { ConfigContext } from '../../contexts/config-context';
 
 interface FormFields {
-  from?: string;
   to?: string;
   message?: string;
 }
 
 export const VoiceMessage: FC = () => {
+  const from = useContext(ConfigContext);
   const [formFields, setFormFields] = useState<FormFields>({});
-  const { from, message, to } = formFields;
+  const { message, to } = formFields;
   const [, sendTextMessage] = useFetch('/api/calls', {
     body: JSON.stringify({ to, from, message }),
     method: 'POST',
@@ -28,7 +29,7 @@ export const VoiceMessage: FC = () => {
   return (
     <Grid container spacing={3}>
       <Grid item xs={6}>
-        <TextField name="from" onChange={handleInputChange} fullWidth label="From" variant="outlined" />
+        {from && <TextField defaultValue={from} fullWidth label="From" variant="outlined" disabled />}
       </Grid>
       <Grid item xs={6}>
         <TextField name="to" onChange={handleInputChange} fullWidth label="To" variant="outlined" />
