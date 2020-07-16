@@ -1,3 +1,4 @@
+export const CLIENT_SCOPE = 'twilio-react';
 export const PORT = process.env.PORT || 1337;
 export const PREFIX = '/api';
 export const TOKEN_TTL = 60 * 60 * 1000;

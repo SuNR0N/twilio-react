@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 interface FetchState<T = any> {
   data: T | null;
@@ -16,9 +16,9 @@ export const useFetch = <T = any>(url: string, options: RequestInit = {}): [Fetc
   const [state, setState] = useState<FetchState<T>>(initialState);
   const [trigger, setTrigger] = useState(false);
 
-  const doFetch = () => {
+  const doFetch = useCallback(() => {
     setTrigger(true);
-  };
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {

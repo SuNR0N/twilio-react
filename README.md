@@ -33,14 +33,22 @@ yarn start:server
 ngrok http 1337
 ```
 
-Set the _Voice_ webhook for your [configured application](https://www.twilio.com/console/sms/runtime/twiml-apps) based on the _ngrok_ proxy:
+### Client
+
+```sh
+yarn start
+```
+
+## Webhooks
+
+Set the _Voice_ webhook for [your configured application](https://www.twilio.com/console/sms/runtime/twiml-apps) based on the _ngrok_ proxy in order to be able to make an outgoing call
 
 ```
 http://05a4d4643fa0.ngrok.io/hooks/call/connect
 ```
 
-### Client
+Set the _Voice_ webhook for [your Twilio phone number](https://www.twilio.com/console/phone-numbers/incoming) based on the _ngrok_ proxy in order to be able to receive an incoming call
 
-```sh
-yarn start
+```
+http://05a4d4643fa0.ngrok.io/hooks/voice
 ```
