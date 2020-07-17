@@ -3,5 +3,9 @@
     &:not(:last-child) {
       margin-bottom: 0.5rem;
     }
+
+    &:last-child {
+      margin-top: 1rem;
+    }
   }
 }
