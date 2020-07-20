@@ -1,5 +1,5 @@
 import React, { ChangeEvent, FC, useContext, useEffect, useState } from 'react';
-import { Button, Grid, Snackbar, TextField } from '@material-ui/core';
+import { Grid, Snackbar, TextField } from '@material-ui/core';
 import { Alert } from '@material-ui/lab';
 import { Connection, Device } from 'twilio-client';
 
@@ -20,6 +20,14 @@ export const Call: FC = () => {
   const [formFields, setFormFields] = useState<FormFields>({});
   const { to: number } = formFields;
 
+  const canAcceptCall = !!incomingConnection;
+  const canInitiateCall = isDeviceReady && device.status() === Device.Status.Ready && number;
+  const canHangUpCall = connection && connection.status() !== Connection.State.Closed;
+  const canRejectCall = !!incomingConnection;
+  const acceptDisabled = !canAcceptCall && !canInitiateCall;
+  const declineDisabled = !canHangUpCall && !canRejectCall;
+  const keysDisabled = !connection;
+
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { target } = event;
     setFormFields({
@@ -32,17 +40,15 @@ export const Call: FC = () => {
     setShowNotifications(false);
   };
 
-  const answer = () => {
-    incomingConnection?.accept();
-  };
-
-  const call = () => {
-    if (device && isDeviceReady && number) {
+  const onAccept = () => {
+    if (incomingConnection) {
+      incomingConnection.accept();
+    } else if (device && isDeviceReady && number) {
       device.connect({ phoneNumber: number });
     }
   };
 
-  const hangUp = () => {
+  const onDecline = () => {
     if (incomingConnection) {
       incomingConnection.reject();
       setIncomingConnection(undefined);
@@ -96,41 +102,14 @@ export const Call: FC = () => {
             }
           />
         </Grid>
-        <Dialpad onKeyPress={handleKeyPress} />
-        <Grid container justify="center" alignItems="center" item xs={12} spacing={3}>
-          <Grid item>
-            <Button
-              onClick={() => call()}
-              variant="contained"
-              color="primary"
-              disableElevation
-              disabled={!isDeviceReady || device.status() !== Device.Status.Ready || !!incomingConnection}
-            >
-              Call
-            </Button>
-          </Grid>
-          <Grid item>
-            <Button
-              onClick={() => answer()}
-              variant="contained"
-              disableElevation
-              disabled={!isDeviceReady || device.status() !== Device.Status.Ready || !incomingConnection}
-            >
-              Answer
-            </Button>
-          </Grid>
-          <Grid item>
-            <Button
-              onClick={() => hangUp()}
-              variant="contained"
-              color="secondary"
-              disableElevation
-              disabled={!(incomingConnection || (connection && connection.status() !== Connection.State.Closed))}
-            >
-              Hang Up
-            </Button>
-          </Grid>
-        </Grid>
+        <Dialpad
+          acceptDisabled={acceptDisabled}
+          declineDisabled={declineDisabled}
+          keysDisabled={keysDisabled}
+          onAccept={onAccept}
+          onDecline={onDecline}
+          onKeyPress={handleKeyPress}
+        />
       </Grid>
       <Snackbar open={showNotifications} autoHideDuration={5000} onClose={handleClose}>
         {incomingConnection && (

@@ -91,7 +91,7 @@ export const Dialpad: FC<DialpadProps> = ({ acceptDisabled, declineDisabled, key
         </Grid>
       </Grid>
       <Grid className="dialpad__row" container justify="center" alignItems="center">
-        {/* <Grid container justify="center" item xs={2} sm={2} md={1}>
+        <Grid container justify="center" item xs={2} sm={2} md={1}>
           <Button variant="outlined" onClick={onAccept} disabled={acceptDisabled}>
             <Call fontSize="large" style={{ color: 'green' }} />
           </Button>
@@ -100,7 +100,7 @@ export const Dialpad: FC<DialpadProps> = ({ acceptDisabled, declineDisabled, key
           <Button variant="outlined" onClick={onDecline} disabled={declineDisabled}>
             <CallEnd fontSize="large" color="secondary" />
           </Button>
-        </Grid> */}
+        </Grid>
       </Grid>
     </Grid>
   );
