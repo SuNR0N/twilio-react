@@ -102,7 +102,7 @@ curl 'http://localhost:3000/api/token/generate' \
 ```
 
 3. _CUI1_ sets up the device (browser) with the provided JWT token
-4. _CUI1_ establishes a _WSS_ connection with _TSS_ (wss://chunderw-vpc-gll.twilio.com/signal) using its JWT token and sends a message with type `listen`
+4. _CUI1_ establishes a web socket connection with _TSS_ using its JWT token and sends a message with type `listen`
 
 ```sh
 curl 'wss://chunderw-vpc-gll.twilio.com/signal' \
@@ -207,7 +207,7 @@ curl 'http://localhost:3000/api/token/generate' \
 ```
 
 3. _CUI1_ sets up the device (browser) with the provided JWT token
-4. _CUI1_ tries to continously establish a _WSS_ connection with _TSS_ (wss://chunderw-vpc-gll.twilio.com/signal) using its JWT token and sends a message with type `listen`
+4. _CUI1_ tries to continously establish a web socket connection with _TSS_ using its JWT token and sends a message with type `listen`
 
 ```sh
 curl 'wss://chunderw-vpc-gll.twilio.com/signal' \
@@ -275,7 +275,7 @@ curl 'http://localhost:3000/api/token/generate' \
 ```
 
 3. _CUI1_ sets up the device (browser) with the provided JWT token
-4. _CUI1_ establishes a _WSS_ connection with _TSS_ (wss://chunderw-vpc-gll.twilio.com/signal) using its JWT token and sends a message with type `listen`
+4. _CUI1_ establishes a web socket connection with _TSS_ using its JWT token and sends a message with type `listen`
 
 ```sh
 curl 'wss://chunderw-vpc-gll.twilio.com/signal' \
@@ -831,7 +831,7 @@ curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
   --compressed ;
 ```
 
-#### Accepting the call on the remote device
+#### Exchange of data from the caller's perspective (once connected)
 
 1. _CUI1_ sends a _POST_ request to _TEG_ periodically with group `quality-metrics-samples` and name `metrics-sample`
 
@@ -854,56 +854,590 @@ curl 'https://eventgw.twilio.com/v4/EndpointMetrics' \
   --compressed ;
 ```
 
-#### Declining the call on the remote device
+#### Declining the call on the remote device or calling an invalid number
 
 1. _TSS_ sends a message to _CUI1_ with type `hangup` and with `callsid` in its payload
-2. _CUI1_ sends a _POST_ request to _TGW_ (https://eventgw.twilio.com/v4/EndpointEvents) with group `connection` and name `disconnected-by-remote`
-3. _CUI1_ sends a _POST_ request to _TGW_ with group `dtls-transport-state` and name `closed`
-4. _CUI1_ sends a _POST_ request to _TGW_ with group `signaling-state` and name `closed`
-
-#### With invalid number
-
-1. _TSS_ sends a message to _CUI1_ with type `hangup` and with `callsid` in its payload
-2. _CUI1_ sends a _POST_ request to _TGW_ (https://eventgw.twilio.com/v4/EndpointEvents) with group `connection` and name `disconnected-by-remote`
-3. _CUI1_ sends a _POST_ request to _TGW_ with group `dtls-transport-state` and name `closed`
-4. _CUI1_ sends a _POST_ request to _TGW_ with group `signaling-state` and name `closed`
+2. _CUI1_ sends a _POST_ request to _TEG_ with group `connection` and name `disconnected-by-remote`
+3. _CUI1_ sends a _POST_ request to _TEG_ with group `dtls-transport-state` and name `closed`
+4. _CUI1_ sends a _POST_ request to _TEG_ with group `signaling-state` and name `closed`
 
 ### Signaling the incoming call in the browser
 
-1. _TGW_ calls the configured `/hooks/voice` endpoint within _CS2_
-2. _CS2_ responds back with the generated TwiML that contains the client scope which is configured in the JWT token that _CSUI2_ uses
-3. _CUI2_ sends a _POST_ request to _TGW_ (https://eventgw.twilio.com/v4/EndpointEvents) with group `connection` and name `incoming`
+1. _TP_ calls the configured `/hooks/voice` endpoint within _CS2_
+
+```sh
+POST /hooks/voice HTTP/1.1
+Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+X-Twilio-Signature: iClbtUqj06E2FSAG8PBAML5BQuc=
+I-Twilio-Idempotency-Token: 562915d6-20d4-463b-99f4-c7c0626f6bc9
+Content-Length: 449
+Host: d93992f2510f.ngrok.io
+Cache-Control: max-age=259200
+User-Agent: TwilioProxy/1.1
+connection: close
+X-Forwarded-For: 3.87.88.197
+
+AccountSid=AC********************************&ApiVersion=2010-04-01&CallSid=CA0b33a4462bd42d3eeaa07f07653796e3&CallStatus=ringing&Called=%2B12031234567&CalledCity=BRANFORD&CalledCountry=US&CalledState=CT&CalledZip=06405&Caller=%2B447381234567&CallerCity=&CallerCountry=GB&CallerState=&CallerZip=&Direction=inbound&From=%2B447381234567&FromCity=&FromCountry=GB&FromState=&FromZip=&To=%2B12031234567&ToCity=BRANFORD&ToCountry=US&ToState=CT&ToZip=06405
+```
+
+2. _CS2_ responds back to _TP_ with the generated TwiML that contains the client scope which is configured in the JWT token that _CSUI2_ uses
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial>
+    <Client>twilio-react</Client>
+  </Dial>
+</Response>
+```
+
+3. _TSS_ sends a message to _CUI2_ with type `invite` and `callsid`, `parameters` and `sdp` in its payload
+
+```json
+{
+  "payload": {
+    "callsid": "CA929a9d3930f425b4c26c0af127b81b42",
+    "parameters": {
+      "ApiVersion": "2010-04-01",
+      "CallSid": "CA929a9d3930f425b4c26c0af127b81b42",
+      "From": "+447381234567",
+      "To": "client:twilio-react",
+      "AccountSid": "AC********************************"
+    },
+    "sdp": "v=0\r\no=root 2112656901 2112656901 IN IP4 172.21.27.90\r\ns=Twilio Media Gateway\r\nc=IN IP4 3.122.181.175\r\nt=0 0\r\na=group:BUNDLE audio\r\na=ice-lite\r\nm=audio 18130 RTP/SAVPF 107 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:107 opus/48000/2\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-16\r\na=ptime:20\r\na=maxptime:20\r\na=ice-ufrag:677c148f4a0b561f2f5630660755803d\r\na=ice-pwd:1ae61f3f6c01183e0f16309a07f74493\r\na=candidate:H37ab5af 1 UDP 2130706431 3.122.181.175 18130 typ host\r\na=candidate:H37ab5af 2 UDP 2130706430 3.122.181.175 18131 typ host\r\na=end-of-candidates\r\na=connection:new\r\na=setup:actpass\r\na=fingerprint:sha-256 FE:EB:5C:FB:0E:27:67:12:C0:A8:B9:A1:CC:23:F0:78:EF:F1:DE:AA:43:4F:90:F6:CC:CD:56:59:87:AE:00:AE\r\na=mid:audio\r\na=msid:c8113f2d-8470-477d-936a-065d3c752a79 987826eb-9a1f-47d6-93ac-081599f8b77a\r\na=ssrc:1941819793 msid:c8113f2d-8470-477d-936a-065d3c752a79 987826eb-9a1f-47d6-93ac-081599f8b77a\r\na=ssrc:1941819793 mslabel:c8113f2d-8470-477d-936a-065d3c752a79\r\na=ssrc:1941819793 label:987826eb-9a1f-47d6-93ac-081599f8b77a\r\na=rtcp-mux\r\na=ssrc:1941819793 cname:105774ec-c073-49f0-a884-49be95ccc08f\r\na=sendrecv\r\n"
+  },
+  "type": "invite",
+  "version": ""
+}
+```
+
+4. _CUI2_ sends a _POST_ request to _TEG_ with group `connection` and name `incoming`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"connection","name":"incoming","timestamp":"2020-07-21T12:17:59.425Z","level":"INFO","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed ;
+```
 
 #### Declining the call in the browser
 
-1. By pressing the _Decline_ button on an incoming call calls the `reject` function of the incoming connection object
+1. By pressing the _Decline_ button in _CUI2_ on an incoming call the `reject` function of the incoming connection object gets called
 2. _CUI2_ sends a message to _TSS_ with type `reject` and with the `callsid` in its payload
-3. _CUI2_ sends a _POST_ request to _TGW_ (https://eventgw.twilio.com/v4/EndpointEvents) with group `connection` and name `rejected-by-local`
+
+```json
+{
+  "type": "reject",
+  "version": "1.5",
+  "payload": {
+    "callsid": "CA929a9d3930f425b4c26c0af127b81b42"
+  }
+}
+```
+
+3. _CUI2_ sends a _POST_ request to _TEG_ with group `connection` and name `rejected-by-local`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"connection","name":"rejected-by-local","timestamp":"2020-07-21T16:02:40.361Z","level":"INFO","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSa7187271-e572-46dd-a658-ba7c7f58841b","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed
+```
 
 #### Accepting the call in the browser
 
-1. _CUI2_ sends a _POST_ request to _TGW_ (https://eventgw.twilio.com/v4/EndpointEvents) with group `get-user-media` and name `succeeded`
-2. _CUI2_ sends a _POST_ request to _TGW_ with group `signaling-state` and name `have-remote-offer`
-3. _CUI2_ sends a _POST_ request to _TGW_ with group `settings` and name `edge`
-4. _CUI2_ sends a _POST_ request to _TGW_ with group `network-information` and name `network-change`
-5. _CUI2_ sends a _POST_ request to _TGW_ with group `signaling-state` and name `stable`
-6. _CUI2_ sends a _POST_ request to _TGW_ with group `connection` and name `accepted-by-local`
-7. _TSS_ sends a message to _CUI2_ with type `answer` and with `callsid` and `sdp` in its payload
-8. _CUI2_ sends a _POST_ request to _TGW_ with group `settings` and name `codec`
-9. _CUI2_ sends a _POST_ request to _TGW_ with group `dtls-transport-state` and name `new`
-10. _CUI2_ sends a _POST_ request to _TGW_ with group `ice-connection-state` and name `checking`
-11. _CUI2_ sends a _POST_ request to _TGW_ with group `ice-gathering-state` and name `gathering`
-12. _CUI2_ sends a _POST_ request to _TGW_ with group `ice-candidate` and name `ice-candidate` (can happen multiple times)
-13. _CUI2_ sends a _POST_ request to _TGW_ with group `pc-connection-state` and name `connecting`
-14. _CUI2_ sends a _POST_ request to _TGW_ with group `dtls-transport-state` and name `connecting`
-15. _CUI2_ sends a _POST_ request to _TGW_ with group `ice-connection-state` and name `connected`
-16. _CUI2_ sends a _POST_ request to _TGW_ with group `ice-gathering-state` and name `complete`
-17. _CUI2_ sends a _POST_ request to _TGW_ with group `dtls-transport-state` and name `connected`
-18. _CUI2_ sends a _POST_ request to _TGW_ with group `pc-connection-state` and name `connected`
+1. By pressing the _Answer_ button in _CUI2_ on an icoming call the `accept` function of the incoming connection object gets called
+2. _CUI2_ sends a _POST_ request to _TEG_ with group `get-user-media` and name `succeeded`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"get-user-media","name":"succeeded","timestamp":"2020-07-21T12:18:04.451Z","level":"INFO","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT","data":{"audioConstraints":true}},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+3. _CUI2_ sends a _POST_ request to _TEG_ with group `signaling-state` and name `have-remote-offer`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"signaling-state","name":"have-remote-offer","timestamp":"2020-07-21T12:18:04.458Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+4. _CUI2_ sends a _POST_ request to _TEG_ with group `settings` and name `edge`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"settings","name":"edge","timestamp":"2020-07-21T12:18:04.464Z","level":"INFO","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT","edge":"frankfurt"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+5. _CUI2_ sends a _POST_ request to _TEG_ with group `network-information` and name `network-change`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"network-information","name":"network-change","timestamp":"2020-07-21T12:18:04.465Z","level":"INFO","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT","downlink":10,"effective_type":"4g","rtt":0},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+6. _CUI2_ sends a _POST_ request to _TEG_ with group `signaling-state` and name `stable`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"signaling-state","name":"stable","timestamp":"2020-07-21T12:18:04.466Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+7. _CUI2_ sends a _POST_ request to _TEG_ with group `connection` and name `accepted-by-local`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"connection","name":"accepted-by-local","timestamp":"2020-07-21T12:18:04.467Z","level":"INFO","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+8. _TSS_ sends a message to _CUI2_ with type `answer` and with `callsid` and `sdp` in its payload
+
+```json
+{
+  "type": "answer",
+  "version": "1.5",
+  "payload": {
+    "sdp": "v=0\r\no=- 7499563538412555830 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE audio\r\na=msid-semantic: WMS itsIY5hGiElZ0izufaVCnh3cutWeQXi55QUo\r\nm=audio 62466 RTP/SAVPF 0 107 101\r\nc=IN IP4 192.168.1.120\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=candidate:619795505 1 udp 2122262783 2a01:4b00:867a:ff00:7c49:549f:792f:5f96 62416 typ host generation 0 network-id 2 network-cost 10\r\na=candidate:3378846520 1 udp 2122194687 192.168.1.120 62466 typ host generation 0 network-id 1 network-cost 10\r\na=ice-ufrag:xCYO\r\na=ice-pwd:hXw2uLQxO4JmYz4R6N6Vb71a\r\na=ice-options:trickle\r\na=fingerprint:sha-256 A2:23:16:F8:42:FF:0E:4B:8A:E3:8B:B0:55:6F:B3:5E:DA:3E:82:81:48:D9:03:98:09:99:9B:37:5B:57:CE:65\r\na=setup:active\r\na=mid:audio\r\na=sendrecv\r\na=msid:itsIY5hGiElZ0izufaVCnh3cutWeQXi55QUo 399930f1-16db-4783-9987-74e8d0b7d101\r\na=rtcp-mux\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:107 opus/48000/2\r\na=fmtp:107 minptime=10;useinbandfec=1\r\na=rtpmap:101 telephone-event/8000\r\na=ssrc:2758060485 cname:yJN3nnIXVV79bQNZ\r\n",
+    "callsid": "CA929a9d3930f425b4c26c0af127b81b42"
+  }
+}
+```
+
+9. _CUI2_ sends a _POST_ request to _TEG_ with group `settings` and name `codec`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"settings","name":"codec","timestamp":"2020-07-21T12:18:04.468Z","level":"INFO","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT","codec_params":"","selected_codec":"PCMU/8000"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+10. _CUI2_ sends a _POST_ request to _TEG_ with group `dtls-transport-state` and name `new`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"dtls-transport-state","name":"new","timestamp":"2020-07-21T12:18:04.469Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+11. _CUI2_ sends a _POST_ request to _TEG_ with group `ice-connection-state` and name `checking`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"ice-connection-state","name":"checking","timestamp":"2020-07-21T12:18:04.470Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+12. _CUI2_ sends a _POST_ request to _TEG_ with group `ice-gathering-state` and name `gathering`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"ice-gathering-state","name":"gathering","timestamp":"2020-07-21T12:18:04.511Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+13. _CUI2_ sends a _POST_ request to _TEG_ with group `ice-candidate` and name `ice-candidate` (can happen multiple times)
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"ice-candidate","name":"ice-candidate","timestamp":"2020-07-21T12:18:04.511Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT","candidate_type":"host","deleted":false,"ip":"[2a01:4b00:867a:ff00:7c49:549f:792f:5f96]","is_remote":false,"network-cost":10,"port":62416,"priority":2122262783,"protocol":"udp","transport_id":"audio"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+14. _CUI2_ sends a _POST_ request to _TEG_ with group `pc-connection-state` and name `connecting`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"pc-connection-state","name":"connecting","timestamp":"2020-07-21T12:18:04.512Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+15. _CUI2_ sends a _POST_ request to _TEG_ with group `dtls-transport-state` and name `connecting`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"dtls-transport-state","name":"connecting","timestamp":"2020-07-21T12:18:04.517Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+16. _CUI2_ sends a _POST_ request to _TEG_ with group `ice-connection-state` and name `connected`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"ice-connection-state","name":"connected","timestamp":"2020-07-21T12:18:04.518Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+17. _CUI2_ sends a _POST_ request to _TEG_ with group `ice-gathering-state` and name `complete`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"ice-gathering-state","name":"complete","timestamp":"2020-07-21T12:18:04.519Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+18. _CUI2_ sends a _POST_ request to _TEG_ with group `dtls-transport-state` and name `connected`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"dtls-transport-state","name":"connected","timestamp":"2020-07-21T12:18:04.553Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+19. _CUI2_ sends a _POST_ request to _TEG_ with group `pc-connection-state` and name `connected`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"pc-connection-state","name":"connected","timestamp":"2020-07-21T12:18:04.554Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed ;
+```
+
+#### Exchange of data from the callee's perspective (once accepted)
+
+1. _CUI2_ sends a _POST_ request to _TEG_ periodically with group `quality-metrics-samples` and name `metrics-sample`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointMetrics' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"quality-metrics-samples","name":"metrics-sample","timestamp":"2020-07-21T15:48:52.961Z","level":"INFO","payload_type":"application/json","private":false,"payload":[{"timestamp":"2020-07-21T15:48:51.665Z","total_packets_received":46,"total_packets_lost":0,"total_packets_sent":45,"total_bytes_received":7360,"total_bytes_sent":7200,"packets_received":46,"packets_lost":0,"packets_lost_fraction":0,"bytes_received":7360,"bytes_sent":7200,"audio_codec":"PCMU","audio_level_in":7728,"audio_level_out":2581,"call_volume_input":0.2757352941176471,"call_volume_output":0.12009803921568628,"jitter":1,"rtt":18,"mos":null,"call_sid":"CA929a9d3930f425b4c26c0af127b81b42","dscp":true,"sdk_version":"1.12.1","direction":"INCOMING"},{"timestamp":"2020-07-21T15:48:52.665Z","total_packets_received":96,"total_packets_lost":0,"total_packets_sent":95,"total_bytes_received":15360,"total_bytes_sent":15200,"packets_received":50,"packets_lost":0,"packets_lost_fraction":0,"bytes_received":8000,"bytes_sent":8000,"audio_codec":"PCMU","audio_level_in":6332,"audio_level_out":1800,"call_volume_input":0.07083333333333333,"call_volume_output":0.07475490196078431,"jitter":2,"rtt":17,"mos":4.42,"call_sid":"CA929a9d3930f425b4c26c0af127b81b42","dscp":true,"sdk_version":"1.12.1","direction":"INCOMING"}],"publisher_metadata":{}}' \
+  --compressed
+```
 
 #### Declining the call in the browser after accepting
 
-1. _CUI2_ sends a message to _TSS_ with type `hangup` and with `callsid` in its payload
-2. _CUI2_ sends a _POST_ request to _TGW_ (https://eventgw.twilio.com/v4/EndpointEvents) with group `dtls-transport-state` and name `closed`
-3. _CUI2_ sends a _POST_ request to _TGW_ with group `connection` and name `disconnected-by-local`
-4. _CUI2_ sends a _POST_ request to _TGW_ with group `signaling-state` and name `closed`
+1. Hang up from the browser by clicking the _Decline_ button which calls the `disconnectAll` function of the device provided by `twilio-client`
+2. _CUI2_ sends a message to _TSS_ with type `hangup` and with `callsid` in its payload
+
+```json
+{
+  "type": "hangup",
+  "version": "1.5",
+  "payload": {
+    "callsid": "CA929a9d3930f425b4c26c0af127b81b42"
+  }
+}
+```
+
+3. _CUI2_ sends a _POST_ request to _TEG_ with group `dtls-transport-state` and name `closed`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"dtls-transport-state","name":"closed","timestamp":"2020-07-21T15:48:52.954Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","audio_codec":"PCMU","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed
+```
+
+4. _CUI2_ sends a _POST_ request to _TEG_ with group `connection` and name `disconnected-by-local`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"connection","name":"disconnected-by-local","timestamp":"2020-07-21T15:48:52.963Z","level":"INFO","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","audio_codec":"PCMU","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed
+```
+
+5. _CUI2_ sends a _POST_ request to _TEG_ with group `signaling-state` and name `closed`
+
+```sh
+curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
+  -H 'authority: eventgw.twilio.com' \
+  -H 'pragma: no-cache' \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36' \
+  -H 'x-twilio-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNjb3BlOmNsaWVudDpvdXRnb2luZz9hcHBTaWQ9VFdJTElPX0FQUF9TSUQgc2NvcGU6Y2xpZW50OmluY29taW5nP2NsaWVudE5hbWU9dHdpbGlvLXJlYWN0IiwiaXNzIjoiVFdJTElPX0FDQ09VTlRfU0lEIiwiZXhwIjoxNTk4OTI5MDExLCJpYXQiOjE1OTUzMjkwMTF9.8BW1h9GoOVg06-jareYRRovdlefgERUNGvumTxs2R8w' \
+  -H 'accept: */*' \
+  -H 'origin: http://localhost:3000' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'referer: http://localhost:3000/' \
+  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8' \
+  --data-binary '{"publisher":"twilio-js-sdk","group":"signaling-state","name":"closed","timestamp":"2020-07-21T15:48:52.991Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","audio_codec":"PCMU","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
+  --compressed
+```
