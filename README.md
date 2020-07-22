@@ -1,6 +1,37 @@
 # twilio-react
 
-## Environment variable
+Table of Contents
+
+- [Environment variables](#environment-variables)
+- [Prerequisites](#prerequisites)
+- [Install](#install)
+- [Run](#run)
+  - [Server](#server)
+  - [Client](#client)
+- [Webhooks](#webhooks)
+- [Browser-to-browser & browser-to-device communication](#browser-to-browser---browser-to-device-communication)
+  - [Participants](#participants)
+  - [Initialisation](#initialisation)
+    - [With valid credentials](#with-valid-credentials)
+    - [With invalid `TWILIO_ACCOUNT_SID`](#with-invalid--twilio-account-sid-)
+    - [With invalid `TWILIO_AUTH_TOKEN`](#with-invalid--twilio-auth-token-)
+  - [Ringing a device](#ringing-a-device)
+    - [Hanging up from the browser even before the remote could accept the call](#hanging-up-from-the-browser-even-before-the-remote-could-accept-the-call)
+    - [Exchange of data from the caller's perspective (once connected)](#exchange-of-data-from-the-caller-s-perspective--once-connected-)
+    - [Declining the call on the remote device or calling an invalid number](#declining-the-call-on-the-remote-device-or-calling-an-invalid-number)
+  - [Signaling the incoming call in the browser](#signaling-the-incoming-call-in-the-browser)
+    - [Declining the call in the browser](#declining-the-call-in-the-browser)
+    - [Accepting the call in the browser](#accepting-the-call-in-the-browser)
+    - [Exchange of data from the callee's perspective (once accepted)](#exchange-of-data-from-the-callee-s-perspective--once-accepted-)
+    - [Declining the call in the browser after accepting](#declining-the-call-in-the-browser-after-accepting)
+- [Twilio Client](#twilio-client)
+  - [Device.setup](#devicesetup)
+  - [Device.connect](#deviceconnect)
+  - [Connection.accept](#connectionaccept)
+  - [Connection.reject](#connectionreject)
+  - [Device.disconnectAll](#devicedisconnectall)
+
+## Environment variables
 
 Set up a `.env.local` file as follows:
 
@@ -14,6 +45,10 @@ TWILIO_PHONE_NUMBER=Your-Twilio-Phone-Number
 ## Prerequisites
 
 Download and install [ngrok](https://ngrok.com/)
+
+```sh
+sudo snap install ngrok
+```
 
 ## Install
 
@@ -1512,3 +1547,33 @@ curl 'https://eventgw.twilio.com/v4/EndpointEvents' \
   --data-binary '{"publisher":"twilio-js-sdk","group":"signaling-state","name":"closed","timestamp":"2020-07-21T15:48:52.991Z","level":"DEBUG","payload_type":"application/json","private":false,"payload":{"aggressive_nomination":false,"browser_extension":false,"dscp":true,"ice_restart_enabled":false,"platform":"WebRTC","sdk_version":"1.12.1","call_sid":"CA929a9d3930f425b4c26c0af127b81b42","temp_call_sid":"TJSd7f55db0-f5f1-49a3-942b-0949c438b385","audio_codec":"PCMU","direction":"INCOMING","gateway":"ec2-54-93-126-51.eu-central-1.compute.amazonaws.com","region":"EU_FRANKFURT"},"publisher_metadata":{}}' \
   --compressed
 ```
+
+## Twilio Client
+
+### Device.setup
+
+- Beyond the `token` argument it takes an optional configuration object which has an undocumented `publishEvents` property. In case that property is set to `false` then the client won't publish any events to the _Twilio Event Gateway_ therefore there won't be any _POST_ requests.
+- When enabled (by default) then these requests get initiated from the browser using [XMLHttpRequest](https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest).
+
+### Device.connect
+
+- Creates a new connection using [connectionFactory](https://github.com/twilio/twilio-client.js/blob/master/lib/twilio/connection.ts).
+- By default it uses the [PeerConnection](https://github.com/twilio/twilio-client.js/blob/master/lib/twilio/rtc/peerconnection.js) class to instantiate the underlying `MediaStream` which is the library's wrapper around [RTCPeerConnection](https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection). Given that the device _options_ contains a custom `MediaStream` property or a custom `mediaStreamFactory` function then those can be used instead.
+- For outgoing calls a temporary call sid gets generated
+- Calls the `accept` function of the connection under the hood
+
+### Connection.accept
+
+- Sets the input tracks on the current media stream to the current input stream
+- Once it checks the availability of user's media devices then based on the direction of the call it calls the `answerIncomingCall` or `makeOutgoingCall` functions of the underlying [MediaStream](https://github.com/twilio/twilio-client.js/blob/master/lib/twilio/rtc/peerconnection.js)
+  - `makeOutgoingCall` - creates the local offer and then sends out the invite over web socket on success
+  - `answerIncomingCall` - processes the SDP and then sends an aswer over web socket on success
+
+### Connection.reject
+
+- Calls `reject` on the designated streams (media & web socket) with the current call sid
+
+### Device.disconnectAll
+
+- Calls the `disconnect` function on each active _Connection_
+  - `disconnect` - sends a _hangup_ message over web socket and then closes the media stream
